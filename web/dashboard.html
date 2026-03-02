@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <script src="config.js"></script>
+  <script>
+    const GAS_URL = CONFIG.GAS_URL;
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>入退室ダッシュボード</title>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7f6; padding: 20px; color: #333; }
+    h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
+    .controls { text-align: center; margin-bottom: 20px; }
+    button.refresh { padding: 8px 15px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; margin-right: 10px;}
+    button.force-out { padding: 8px 15px; background-color: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold;}
+    
+    .search-container { text-align: center; margin-bottom: 30px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 600px; margin-left: auto; margin-right: auto; display: flex; gap: 10px; justify-content: center; }
+    .search-input { padding: 10px; width: 60%; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 16px; outline: none; }
+    .search-input:focus { border-color: #3498db; }
+    .grade-filter { padding: 10px; width: 35%; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 16px; outline: none; background: white;}
+    
+    .status-section { margin-bottom: 50px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+    .status-header { border-bottom: 3px solid; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px; display: flex; align-items: baseline; gap: 10px; }
+    .status-header.in { border-bottom-color: #2ecc71; color: #27ae60; } 
+    .status-header.out { border-bottom-color: #bdc3c7; color: #7f8c8d; } 
+
+    .grade-section { margin-bottom: 30px; padding-left: 10px; }
+    .grade-header { border-bottom: 2px dashed #bdc3c7; color: #34495e; padding-bottom: 5px; margin-bottom: 15px; font-size: 18px; display: flex; align-items: baseline; gap: 10px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+    
+    .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #ccc; transition: 0.2s; position: relative; }
+    .card.status-in { border-top-color: #2ecc71; background: #f0fdf4; }
+    
+    .name-area { margin-bottom: 10px; text-align: center; }
+    .name { font-size: 22px; font-weight: bold; }
+    .grade { font-size: 14px; color: #7f8c8d; margin-left: 5px; }
+    .yomi-text { font-size: 11px; color: #95a5a6; margin-top: 2px; }
+    .time { font-size: 14px; color: #7f8c8d; margin-bottom: 15px; text-align: center; }
+    
+    .action-btn { padding: 10px; width: 100%; font-size: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; margin-bottom: 8px; }
+    .btn-in { background-color: #e8f8f5; color: #1abc9c; border: 1px solid #1abc9c; }
+    .btn-out { background-color: #fdedec; color: #e74c3c; border: 1px solid #e74c3c; }
+    .btn-copy { background-color: #f8f9fa; color: #34495e; border: 1px solid #bdc3c7; }
+    .btn-copy:active { background-color: #ecf0f1; }
+
+    /* 📜 履歴セクション（幅広に修正） */
+    .history-section { display: none; margin-top: 15px; border-top: 2px solid #3498db; padding-top: 15px; background: #f8fbff; border-radius: 0 0 12px 12px; margin: 15px -15px -15px -15px; padding: 15px; }
+    .history-item { background: white; padding: 12px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #d6eaf8; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .history-date { font-weight: bold; color: #2980b9; margin-bottom: 10px; display: block; text-align: center; font-size: 14px; }
+    
+    .time-edit-container { display: flex; flex-direction: column; gap: 10px; }
+    .time-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .time-label { font-size: 13px; font-weight: bold; color: #7f8c8d; min-width: 40px; }
+    
+    /* 時・分・秒の入力欄を見やすく */
+    .time-input-group { display: flex; align-items: center; gap: 5px; flex-grow: 1; justify-content: flex-end; }
+    .time-field { padding: 8px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; width: 100%; text-align: center; background: #fff; cursor: pointer; }
+
+    .edit-toggle-btn { background: none; border: none; color: #7f8c8d; text-decoration: underline; cursor: pointer; font-size: 12px; width: 100%; text-align: center; margin-top: 10px; }
+    
+    .edit-form { display: none; background: #f9f9f9; padding: 10px; border-radius: 8px; margin-top: 10px; border: 1px solid #eee; }
+    .edit-form input, .edit-form select { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 15px; }
+    .btn-group { display: flex; gap: 10px; }
+    .btn-save-history { width: 100%; background: #3498db; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; font-size: 14px; }
+
+    #loading { text-align: center; color: #7f8c8d; font-weight: bold; margin: 20px; }
+  </style>
+</head>
+<body>
+
+  <h1>📊 在室ダッシュボード</h1>
+  <div class="controls">
+    <button class="refresh" onclick="fetchStatus()">🔄 手動で更新</button>
+    <button class="force-out" onclick="forceExitAll()">🚪 全員を強制退室させる</button>
+  </div>
+
+  <div class="search-container">
+    <input type="text" id="search-name" class="search-input" placeholder="🔍 名前・ふりがなで検索..." oninput="renderUsers()">
+    <select id="filter-grade" class="grade-filter" onchange="renderUsers()">
+      <option value="all">すべての学年</option>
+      <option value="1">学年: 1</option>
+      <option value="2">学年: 2</option>
+      <option value="3">学年: 3</option>
+      <option value="卒業生">卒業生</option> 
+      <option value="未設定">未設定</option>
+    </select>
+  </div>
+
+  <div id="loading">データを取得中...</div>
+  <div id="main-container"></div>
+
+  <script>
+    let isEditing = false; 
+    let allUsersData = []; 
+
+    function fetchStatus() {
+      if (isEditing) return; 
+      fetch(GAS_URL + "?mode=get_all_status&t=" + new Date().getTime())
+        .then(res => res.json())
+        .then(users => {
+          if (isEditing) return; 
+          allUsersData = users; 
+          renderUsers();        
+        });
+    }
+
+    function renderUsers() {
+      if (isEditing) return;
+      const container = document.getElementById('main-container');
+      container.innerHTML = ""; 
+      document.getElementById('loading').style.display = 'none';
+
+      const searchText = (document.getElementById('search-name').value || "").toLowerCase();
+      const filterGrade = document.getElementById('filter-grade').value;
+
+      const groupedByStatus = { 'in': {}, 'out': {} };
+      allUsersData.forEach(user => {
+        if (filterGrade !== 'all' && (user.grade || '未設定') !== filterGrade) return;
+        if (searchText && !user.name.includes(searchText) && !user.yomi.includes(searchText)) return;
+
+        const s = user.status === 'in' ? 'in' : 'out';
+        const g = user.grade || '未設定';
+        if (!groupedByStatus[s][g]) groupedByStatus[s][g] = [];
+        groupedByStatus[s][g].push(user);
+      });
+
+      ["in", "out"].forEach(sKey => {
+        const statusTitle = sKey === 'in' ? '🟢 現在入室中' : '⚪ 退室・未入室';
+        const section = document.createElement('div');
+        section.className = 'status-section';
+        section.innerHTML = `<h2 class="status-header ${sKey}">${statusTitle}</h2>`;
+        
+        ["1", "2", "3", "卒業生", "未設定"].forEach(grade => {
+          const users = groupedByStatus[sKey][grade] || [];
+          if (users.length === 0) return;
+          const gSection = document.createElement('div');
+          gSection.className = 'grade-section';
+          gSection.innerHTML = `<h3 class="grade-header">${grade === "未設定" ? grade : "学年: " + grade} (${users.length}名)</h3>`;
+          const grid = document.createElement('div');
+          grid.className = 'grid';
+
+          users.forEach(user => {
+            const card = document.createElement('div');
+            card.className = "card " + (user.status === 'in' ? "status-in" : "");
+            card.innerHTML = `
+              <div id="view-${user.idm}">
+                <div class="name-area">
+                  <span class="name">${user.name}</span><span class="grade">(${user.grade || "未設定"})</span>
+                  <div class="yomi-text">${user.yomi || ""}</div>
+                </div>
+                <div class="time">${user.status === 'in' ? '入室: ' + user.time : '退出済み'}</div>
+                <button class="action-btn ${user.status === 'in' ? 'btn-out' : 'btn-in'}" onclick="toggle('${user.idm}', this)">
+                  ${user.status === 'in' ? '👋 退出させる' : '🚪 入室させる'}
+                </button>
+                
+                <button class="action-btn btn-copy" onclick="copyUrl('${user.idm}', this)">📋 URLをコピー</button>
+                
+                <button class="action-btn btn-copy" style="background-color:#ebf5fb; border-color:#3498db; color:#2980b9;" onclick="toggleHistory('${user.idm}')">📜 履歴を確認・編集</button>
+
+                <button class="edit-toggle-btn" onclick="startEdit('${user.idm}')">✏️ 名前・学年・情報を編集</button>
+
+                <div id="history-${user.idm}" class="history-section">
+                  <div id="history-list-${user.idm}">読み込み中...</div>
+                </div>
+              </div>
+              <div id="edit-${user.idm}" class="edit-form">
+                <input type="text" id="input-name-${user.idm}" value="${user.name}">
+                <input type="text" id="input-yomi-${user.idm}" value="${user.yomi}">
+                <select id="select-grade-${user.idm}">
+                  <option value="1" ${user.grade==='1'?'selected':''}>1</option>
+                  <option value="2" ${user.grade==='2'?'selected':''}>2</option>
+                  <option value="3" ${user.grade==='3'?'selected':''}>3</option>
+                  <option value="卒業生" ${user.grade==='卒業生'?'selected':''}>卒業生</option>
+                </select>
+                <div class="btn-group">
+                  <button class="btn-save" style="background:#2ecc71; color:white;" onclick="saveUser('${user.idm}', this)">保存</button>
+                  <button class="btn-cancel" style="background:#95a5a6; color:white;" onclick="cancelEdit('${user.idm}')">戻る</button>
+                </div>
+              </div>
+            `;
+            grid.appendChild(card);
+          });
+          gSection.appendChild(grid);
+          section.appendChild(gSection);
+        });
+        container.appendChild(section);
+      });
+    }
+
+    // --- 履歴編集ロジック（時・分・秒をわかりやすく） ---
+    function toggleHistory(idm) {
+      const section = document.getElementById(`history-${idm}`);
+      if (section.style.display === 'block') { section.style.display = 'none'; isEditing = false; return; }
+      section.style.display = 'block';
+      isEditing = true;
+      
+      fetch(`${GAS_URL}?mode=get_history&idm=${idm}`)
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById(`history-list-${idm}`);
+          if(data.length === 0) { list.innerHTML = "<p style='text-align:center;'>履歴なし</p>"; return; }
+          list.innerHTML = data.map((h, i) => `
+            <div class="history-item">
+              <span class="history-date">📅 ${h.date}</span>
+              <div class="time-edit-container">
+                <div class="time-row">
+                  <span class="time-label">入室</span>
+                  <div class="time-input-group">
+                    <input type="time" step="1" id="h-entry-${idm}-${i}" value="${h.entry}" class="time-field">
+                  </div>
+                </div>
+                <div class="time-row">
+                  <span class="time-label">退出</span>
+                  <div class="time-input-group">
+                    <input type="time" step="1" id="h-exit-${idm}-${i}" value="${h.exit}" class="time-field">
+                  </div>
+                </div>
+              </div>
+              <button class="btn-save-history" onclick="saveHistory('${idm}', ${h.row}, ${i}, this)">この日の記録を更新</button>
+            </div>
+          `).join('');
+        });
+    }
+
+    function saveHistory(idm, row, index, btn) {
+      const entry = document.getElementById(`h-entry-${idm}-${index}`).value;
+      const exit = document.getElementById(`h-exit-${idm}-${index}`).value;
+      btn.innerText = "更新中...";
+      fetch(`${GAS_URL}?mode=update_history&row=${row}&entry=${entry}&exit=${exit}`)
+        .then(() => { alert("履歴を修正しました"); isEditing = false; fetchStatus(); });
+    }
+
+    // --- 基本関数 ---
+    function toggle(idm, btn) {
+      if(!confirm("変更しますか？")) return;
+      btn.disabled = true;
+      fetch(GAS_URL + "?mode=toggle_status&idm=" + idm).then(() => fetchStatus());
+    }
+
+    function copyUrl(idm, btn) {
+      navigator.clipboard.writeText(`https://risshi-log-test.netlify.app/?id=${idm}`).then(() => {
+        btn.innerText = "✅ コピー完了";
+        setTimeout(() => btn.innerText = "📋 URLをコピー", 2000);
+      });
+    }
+
+    function startEdit(idm) { isEditing = true; document.getElementById(`view-${idm}`).style.display = 'none'; document.getElementById(`edit-${idm}`).style.display = 'block'; }
+    function cancelEdit(idm) { isEditing = false; fetchStatus(); }
+    function saveUser(idm, btn) {
+      const name = document.getElementById(`input-name-${idm}`).value;
+      const yomi = document.getElementById(`input-yomi-${idm}`).value;
+      const grade = document.getElementById(`select-grade-${idm}`).value;
+      fetch(`${GAS_URL}?mode=update_user&idm=${idm}&name=${encodeURIComponent(name)}&grade=${encodeURIComponent(grade)}&yomi=${encodeURIComponent(yomi)}`)
+        .then(() => { isEditing = false; fetchStatus(); });
+    }
+
+    function forceExitAll() {
+      if(!confirm("全員を退室させますか？")) return;
+      isEditing = true;
+      fetch(GAS_URL + "?mode=force_exit_all").then(() => { isEditing = false; fetchStatus(); });
+    }
+
+    fetchStatus();
+    setInterval(fetchStatus, 2000);
+  </script>
+</body>
+</html>

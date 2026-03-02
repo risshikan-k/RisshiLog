@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <script src="config.js"></script>
+  <script>
+    const GAS_URL = CONFIG.GAS_URL;
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>入退室モニター</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background-color: #222;
+      color: white;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+      overflow: hidden;
+    }
+    
+    .container {
+      width: 90%;
+      max-width: 800px;
+    }
+
+    /* ==============================
+       待機画面（スタンバイUI）
+       ============================== */
+    #standbyView {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: fade-in 0.8s;
+    }
+    
+    /* ★追加：日付のデザイン */
+    .date-display {
+      font-size: 40px;
+      color: #bdc3c7;
+      margin-bottom: -15px; /* 時計との間隔を調整 */
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .clock {
+      font-size: 140px;
+      font-weight: bold;
+      letter-spacing: 5px;
+      margin-bottom: 40px;
+      color: #ecf0f1;
+      text-shadow: 0 0 30px rgba(255,255,255,0.2);
+      font-variant-numeric: tabular-nums;
+    }
+    
+    .count-box {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 25px;
+      padding: 40px 80px;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    
+    .count-label {
+      font-size: 28px;
+      color: #bdc3c7;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    
+    .count-number {
+      font-size: 100px;
+      font-weight: bold;
+      color: #2ecc71;
+      line-height: 1;
+      text-shadow: 0 0 20px rgba(46, 204, 113, 0.4);
+    }
+
+    /* ==============================
+       通知画面（ポップアップUI）
+       ============================== */
+    #notifyView {
+      display: none;
+      background: #333;
+      border-radius: 30px;
+      padding: 60px 40px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+
+    .pop {
+      animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    @keyframes pop-in {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes fade-in {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+
+    .status-badge {
+      font-size: 40px;
+      font-weight: bold;
+      padding: 15px 40px;
+      border-radius: 50px;
+      display: inline-block;
+      margin-bottom: 30px;
+    }
+    .status-in { background-color: #2ecc71; color: #fff; box-shadow: 0 0 20px #2ecc71; }
+    .status-out { background-color: #f39c12; color: #fff; box-shadow: 0 0 20px #f39c12; }
+    
+    .name {
+      font-size: 80px;
+      font-weight: bold;
+      margin: 20px 0;
+      line-height: 1.2;
+    }
+    .time {
+      font-size: 30px;
+      color: #aaa;
+      margin-top: 20px;
+    }
+    .message {
+      font-size: 24px;
+      margin-top: 40px;
+      color: #ccc;
+    }
+
+    #loading {
+      font-size: 24px;
+      color: #7f8c8d;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div id="loading">システムを準備中...</div>
+    
+    <div id="standbyView">
+      <div class="date-display" id="dateDisplay">----年--月--日(--)</div>
+      
+      <div class="clock" id="clockDisplay">--:--:--</div>
+      <div class="count-box">
+        <div class="count-label">現在の入室者数</div>
+        <div class="count-number"><span id="inRoomCount">-</span> 名</div>
+      </div>
+    </div>
+
+    <div id="notifyView">
+      <div id="statusBadge" class="status-badge"></div>
+      <div id="nameDisplay" class="name"></div>
+      <div id="timeDisplay" class="time"></div>
+      <div id="msgDisplay" class="message"></div>
+    </div>
+  </div>
+
+  <script>
+    let lastDataString = ""; 
+    let currentInRoom = 0;
+    let notifyTimeout = null;
+
+    // ==========================================
+    // 時計と日付の更新（1秒ごと）
+    // ==========================================
+    setInterval(() => {
+      const now = new Date();
+      
+      // 時間の更新 (例: 09:05:03)
+      const timeString = now.toLocaleTimeString('ja-JP', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('clockDisplay').innerText = timeString;
+
+      // ★追加：日付と曜日の更新 (例: 2月27日 (金))
+      const days = ["日", "月", "火", "水", "木", "金", "土"];
+      const dateString = `${now.getMonth() + 1}月${now.getDate()}日 (${days[now.getDay()]})`;
+      document.getElementById('dateDisplay').innerText = dateString;
+    }, 1000);
+
+    // ==========================================
+    // 人数の完全同期
+    // ==========================================
+    async function syncCount() {
+      try {
+        const res = await fetch(GAS_URL + "?mode=get_all_status&t=" + new Date().getTime());
+        const users = await res.json();
+        currentInRoom = users.filter(u => u.status === 'in').length;
+        document.getElementById('inRoomCount').innerText = currentInRoom;
+      } catch (e) {
+        console.error("人数の取得に失敗:", e);
+      }
+    }
+
+    // ==========================================
+    // 最新の入退室履歴の監視
+    // ==========================================
+    async function fetchLatest() {
+      try {
+        const res = await fetch(GAS_URL + "?mode=latest&t=" + new Date().getTime());
+        const data = await res.json();
+        
+        if (!data || data.empty) return;
+
+        const currentDataString = JSON.stringify(data);
+        
+        if (currentDataString !== lastDataString) {
+          lastDataString = currentDataString;
+          showPopup(data);
+        }
+      } catch (e) {
+        console.error("履歴の取得に失敗:", e);
+      }
+    }
+
+    // ==========================================
+    // ポップアップ表示処理
+    // ==========================================
+    function showPopup(data) {
+      if (data.status.includes("入室")) {
+        currentInRoom++;
+      } else if (data.status.includes("退出")) {
+        currentInRoom = Math.max(0, currentInRoom - 1);
+      }
+      document.getElementById('inRoomCount').innerText = currentInRoom;
+
+      document.getElementById('nameDisplay').innerText = data.name + " さん";
+      document.getElementById('timeDisplay').innerText = data.date + " " + data.time;
+
+      const statusBadge = document.getElementById('statusBadge');
+      const msgDisplay = document.getElementById('msgDisplay');
+
+      if (data.status.includes("入室")) {
+        statusBadge.innerText = "入室しました";
+        statusBadge.className = "status-badge status-in";
+        msgDisplay.innerText = "頑張りましょう！🔥";
+      } else {
+        statusBadge.innerText = "退出しました";
+        statusBadge.className = "status-badge status-out";
+        msgDisplay.innerText = "お疲れ様でした！🍵";
+      }
+
+      document.getElementById('standbyView').style.display = 'none';
+      document.getElementById('notifyView').style.display = 'block';
+
+      const card = document.getElementById('notifyView');
+      card.classList.remove('pop');
+      void card.offsetWidth; 
+      card.classList.add('pop');
+
+      if (notifyTimeout) clearTimeout(notifyTimeout); 
+      
+      notifyTimeout = setTimeout(() => {
+        document.getElementById('notifyView').style.display = 'none';
+        document.getElementById('standbyView').style.display = 'flex';
+      }, 5000);
+    }
+
+    // ==========================================
+    // 初回起動時のセットアップ
+    // ==========================================
+    async function initialize() {
+      await syncCount();
+      
+      try {
+        const res = await fetch(GAS_URL + "?mode=latest&t=" + new Date().getTime());
+        const data = await res.json();
+        if (data && !data.empty) {
+          lastDataString = JSON.stringify(data);
+        }
+      } catch(e) {}
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('standbyView').style.display = 'flex';
+
+      setInterval(fetchLatest, 3000); 
+      setInterval(syncCount, 60000);  
+    }
+
+    initialize();
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <script src="config.js"></script>
+  <script>
+    const GAS_URL = CONFIG.GAS_URL;
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>立志舘 自習室マイページ</title>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 0; }
+    
+    .navbar { display: flex; align-items: center; justify-content: space-between; background: #2c3e50; color: white; padding: 15px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .navbar h1 { margin: 0; font-size: 20px; text-align: center; flex-grow: 1; }
+    .hamburger { font-size: 28px; cursor: pointer; user-select: none; width: 30px; }
+    
+    .refresh-btn { font-size: 22px; cursor: pointer; user-select: none; width: 30px; text-align: center; transition: 0.2s; }
+    .refresh-btn:active { transform: scale(0.9); }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; }
+
+    .menu-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99; }
+    .side-menu { position: fixed; top: 0; left: -250px; width: 250px; height: 100%; background: white; z-index: 100; transition: 0.3s ease-in-out; box-shadow: 2px 0 5px rgba(0,0,0,0.2); padding-top: 20px; }
+    .side-menu.open { left: 0; }
+    .menu-item { display: block; padding: 15px 20px; font-size: 16px; font-weight: bold; color: #34495e; text-decoration: none; border-bottom: 1px solid #ecf0f1; }
+    .menu-item:hover { background: #f9f9f9; }
+    .close-btn { text-align: right; padding: 0 20px 10px; font-size: 28px; cursor: pointer; color: #7f8c8d; }
+
+    .container { max-width: 500px; margin: 20px auto; padding: 0 20px; }
+    
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .student-name { font-size: 22px; font-weight: bold; text-align: center; margin-bottom: 15px; color: #2980b9; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px;}
+    
+    .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #eee; font-size: 15px; }
+    .stat-label { color: #7f8c8d; }
+    .stat-value { font-weight: bold; color: #2c3e50; }
+    
+    .section-title { font-size: 18px; font-weight: bold; color: #2c3e50; margin-top: 0; margin-bottom: 10px; display: flex; align-items: center;}
+    .section-desc { font-size: 13px; color: #666; margin-bottom: 10px; }
+    
+    input[type="text"], select, textarea { width: 100%; padding: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 15px; font-family: inherit; font-size: 16px;}
+    textarea { resize: vertical; }
+    label { font-size: 13px; font-weight: bold; color: #7f8c8d; display: block; margin-bottom: 5px;}
+    
+    .btn-submit { width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.2s; margin-bottom: 10px;}
+    .btn-submit:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+    .btn-save { background-color: #2ecc71; }
+    
+    #loading { text-align: center; color: #7f8c8d; font-weight: bold; margin-top: 50px; }
+    #content { display: none; }
+    #error-msg { text-align: center; color: #e74c3c; font-weight: bold; margin-top: 50px; display: none; }
+    
+    #welcome-msg { background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; font-size: 14px; display: none; text-align: center; border: 1px solid #ffeeba;}
+    
+    /* ★修正：初期状態でどの画面も表示しない（JSで判定してから表示する） */
+    .page-section { display: none; }
+    .page-section.active { display: block; }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <div class="hamburger" onclick="toggleMenu()">☰</div>
+    <h1>🏫 RisshiLog</h1>
+    <div class="refresh-btn" id="refresh-icon" onclick="refreshData()" title="データを最新にする">🔄</div>
+  </div>
+
+  <div class="menu-overlay" id="menu-overlay" onclick="toggleMenu()"></div>
+  <div class="side-menu" id="side-menu">
+    <div class="close-btn" onclick="toggleMenu()">×</div>
+    <a href="#" class="menu-item" onclick="showPage('home')">🏠 ホーム（記録）</a>
+    <a href="#" class="menu-item" onclick="showPage('profile')">⚙️ プロフィール設定</a>
+  </div>
+
+  <div class="container">
+    <div id="loading">データを読み込み中...</div>
+    <div id="error-msg">ユーザー情報が見つかりませんでした。<br>正しいQRコードを読み取ってください。</div>
+
+    <div id="content">
+      
+      <div id="page-home" class="page-section">
+        <div class="card">
+          <div class="student-name" id="display-name">お名前</div>
+          <div class="stat-row">
+            <span class="stat-label">累計自習日数</span>
+            <span class="stat-value"><span id="display-days">0</span> 日</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">累計自習時間</span>
+            <span class="stat-value"><span id="display-time">0</span> 分</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">今月の自習日数</span>
+            <span class="stat-value"><span id="display-monthly-days">0</span> 日</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">今月の自習時間</span>
+            <span class="stat-value"><span id="display-monthly-time">0</span> 分</span>
+          </div>
+          <div class="stat-row" style="border-bottom: none;">
+            <span class="stat-label">最終利用日</span>
+            <span class="stat-value" id="display-lastdate">-</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">📮 意見箱（実験期間のみ）</h3>
+          <p class="section-desc">自習室のシステムへの要望があれば、なんでも気軽に教えてください！チューター岡室</p>
+          <textarea id="feedback-message" rows="4" placeholder="ここにメッセージを入力してください"></textarea>
+          <button id="submit-btn" class="btn-submit" onclick="sendFeedback()">送信する</button>
+        </div>
+      </div>
+
+      <div id="page-profile" class="page-section">
+        <div id="welcome-msg">
+          👋 初めての利用ですね！<br>まずは自分の「名前」「ふりがな」「学年」を登録してください。
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">⚙️ プロフィール設定</h3>
+          <p class="section-desc">自分の情報を登録・変更できます。</p>
+          
+          <label>名前（漢字など）</label>
+          <input type="text" id="prof-name" placeholder="例：立志 太郎">
+          
+          <label>ふりがな（ひらがな・カタカナ）</label>
+          <input type="text" id="prof-yomi" placeholder="例：りっし たろう">
+          
+          <label>ニックネーム（ランキング表示用）</label>
+          <input type="text" id="prof-nickname" placeholder="例：りっしー（未入力でも可）">
+
+          <label>学年</label>
+          <select id="prof-grade">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="卒業生">卒業生</option>
+            <option value="未設定">未設定</option>
+          </select>
+          
+          <button id="save-prof-btn" class="btn-submit btn-save" onclick="saveProfile()">情報を保存する</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>    
+    const urlParams = new URLSearchParams(window.location.search);
+    const studentIdm = urlParams.get('id');
+    let currentStudentName = "匿名";
+
+    function toggleMenu() {
+      const menu = document.getElementById('side-menu');
+      const overlay = document.getElementById('menu-overlay');
+      if (menu.classList.contains('open')) {
+        menu.classList.remove('open');
+        overlay.style.display = 'none';
+      } else {
+        menu.classList.add('open');
+        overlay.style.display = 'block';
+      }
+    }
+
+    function showPage(pageId) {
+      document.getElementById('page-home').classList.remove('active');
+      document.getElementById('page-profile').classList.remove('active');
+      document.getElementById('page-' + pageId).classList.add('active');
+      
+      const menu = document.getElementById('side-menu');
+      if (menu.classList.contains('open')) {
+        toggleMenu();
+      }
+      window.scrollTo(0, 0);
+    }
+
+    function refreshData() {
+      if (!studentIdm) return;
+      const icon = document.getElementById('refresh-icon');
+      icon.classList.add('spin'); 
+      loadStudentData(true); 
+    }
+
+    function loadStudentData(isManualRefresh = false) {
+      if (!studentIdm) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error-msg').style.display = 'block';
+        return;
+      }
+
+      const fetchUrl = `${GAS_URL}?id=${studentIdm}&t=${new Date().getTime()}`;
+
+      fetch(fetchUrl)
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('loading').style.display = 'none';
+          
+          if (data.found) {
+            // ★修正：判定条件を強化
+            let rawName = (data.name || "").trim();
+            let isUnregistered = (rawName === "" || rawName === "未登録(新規)" || rawName === "未登録" || rawName === "匿名" || rawName === "不明");
+
+            currentStudentName = data.name;
+            let displayName = data.name;
+            
+            document.getElementById('prof-yomi').value = data.yomi || "";
+            document.getElementById('prof-nickname').value = data.nickname || "";
+            document.getElementById('prof-grade').value = data.grade || "未設定";
+            
+            if (isUnregistered) {
+              displayName = "ゲスト";
+              document.getElementById('welcome-msg').style.display = 'block';
+              document.getElementById('prof-name').value = "";
+              if (!isManualRefresh) showPage('profile'); // 未登録なら設定画面へ
+            } else {
+              document.getElementById('prof-name').value = data.name;
+              if (!isManualRefresh) showPage('home'); // 登録済みならホーム画面へ
+            }
+
+            document.getElementById('display-name').innerText = displayName + " さん";
+            document.getElementById('display-days').innerText = data.totalDays;
+            document.getElementById('display-time').innerText = data.totalTime;
+            document.getElementById('display-monthly-days').innerText = data.monthlyDays; // 追加
+            document.getElementById('display-monthly-time').innerText = data.monthlyTime; // 追加
+            document.getElementById('display-lastdate').innerText = data.lastDate;
+            
+            document.getElementById('content').style.display = 'block';
+          } else {
+            // ★修正：スプレッドシートにIDが見つからなかった場合もエラーにせず、設定画面へ飛ばす
+            document.getElementById('error-msg').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+            
+            document.getElementById('welcome-msg').innerHTML = "👋 データが見つかりません。<br>まずは自分の「名前」「ふりがな」「学年」を登録してください。";
+            document.getElementById('welcome-msg').style.display = 'block';
+            
+            document.getElementById('prof-name').value = "";
+            document.getElementById('prof-yomi').value = "";
+            document.getElementById('prof-grade').value = "未設定";
+            
+            if (!isManualRefresh) showPage('profile');
+          }
+        })
+        .catch(err => {
+          document.getElementById('loading').style.display = 'none';
+          if (!isManualRefresh) {
+            document.getElementById('error-msg').innerText = "通信エラーが発生しました。再読み込みしてください。";
+            document.getElementById('error-msg').style.display = 'block';
+          } else {
+            alert("データの更新に失敗しました。電波の良い場所でお試しください。");
+          }
+        })
+        .finally(() => {
+          if (isManualRefresh) {
+            document.getElementById('refresh-icon').classList.remove('spin');
+          }
+        });
+    }
+
+    function saveProfile() {
+      const newName = document.getElementById('prof-name').value;
+      const newYomi = document.getElementById('prof-yomi').value;
+      const newNickname = document.getElementById('prof-nickname').value;
+      const newGrade = document.getElementById('prof-grade').value;
+      
+      if (!newName.trim()) {
+        alert("名前を入力してください。");
+        return;
+      }
+
+      const btn = document.getElementById('save-prof-btn');
+      btn.disabled = true;
+      btn.innerText = "保存中...";
+
+      const requestUrl = `${GAS_URL}?mode=update_user&idm=${studentIdm}&name=${encodeURIComponent(newName)}&grade=${encodeURIComponent(newGrade)}&yomi=${encodeURIComponent(newYomi)}&nickname=${encodeURIComponent(newNickname)}`;
+
+      fetch(requestUrl)
+        .then(res => res.json())
+        .then(data => {
+          alert("プロフィールを保存しました！");
+          btn.disabled = false;
+          btn.innerText = "情報を保存する";
+          
+          document.getElementById('display-name').innerText = newName + " さん";
+          currentStudentName = newName;
+          document.getElementById('welcome-msg').style.display = 'none';
+          
+          showPage('home');
+        })
+        .catch(err => {
+          alert("保存に失敗しました。電波の良いところで再度お試しください。");
+          btn.disabled = false;
+          btn.innerText = "情報を保存する";
+        });
+    }
+
+    function sendFeedback() {
+      const message = document.getElementById('feedback-message').value;
+      
+      if (!message.trim()) {
+        alert("メッセージを入力してください。");
+        return;
+      }
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerText = "送信中...";
+
+      const requestUrl = `${GAS_URL}?mode=submit_feedback&idm=${studentIdm}&name=${encodeURIComponent(currentStudentName)}&message=${encodeURIComponent(message)}`;
+
+      fetch(requestUrl)
+        .then(res => res.json())
+        .then(data => {
+          alert("ご意見ありがとうございます！送信完了しました。");
+          document.getElementById('feedback-message').value = ""; 
+          btn.disabled = false;
+          btn.innerText = "送信する";
+        })
+        .catch(err => {
+          alert("送信に失敗しました。電波の良いところで再度お試しください。");
+          btn.disabled = false;
+          btn.innerText = "送信する";
+        });
+    }
+
+    window.onload = () => loadStudentData();
+  </script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+ドライバーソフトウェアのダウンロード&インストール
+https://www.sony.co.jp/Products/felica/consumer/support/download/nfcportsoftware.html
+
+python 3.11.9のダウンロード
+https://www.python.org/downloads/release/python-3119/
+
+ライブラリのインストール
+python -m pip install gspread oauth2client pyscard
+
+
+ステップ1：Google Cloud で「鍵」を作る
+まず、PythonがGoogleのサーバーにアクセスするための許可証（JSONファイル）を発行します。
+
+Google Cloud Console (https://console.cloud.google.com/) にアクセスし、Googleアカウントでログインします。
+
+プロジェクトの作成:
+
+左上のプロジェクト選択プルダウンから「新しいプロジェクト」を作成します（名前は EntryExitSystem など適当でOK）。
+
+APIの有効化:
+
+左メニュー 「APIとサービス」 > 「有効なAPIとサービス」 をクリック。
+
+[+ APIとサービスの有効化] をクリック。
+
+以下の 2つのAPI を検索して、それぞれ 「有効にする」 を押してください。
+
+Google Sheets API （シートの読み書きに必須）
+
+Google Drive API （gspread がシートを検索するために必要）
+
+サービスアカウント（ボット）の作成:
+
+左メニュー 「IAMと管理」 > 「サービスアカウント」 をクリック。
+
+[+ サービスアカウントを作成] をクリック。
+
+適当な名前（例: reader-bot）を入力して「作成して続行」。
+
+「ロール（権限）」 は「基本」> 「編集者」 を選んで「続行」→「完了」。
+
+鍵（JSON）のダウンロード:
+
+作成されたメールアドレス（reader-bot@...）をクリック。
+
+「キー」 タブ > [鍵を追加] > [新しい鍵を作成]。
+
+「JSON」 を選んで「作成」。
+
+自動的にファイルがダウンロードされます。
+
+重要: ダウンロードされたファイル（project-name-xxxxx.json）を、credentials.json という名前に変更し、Pythonのコードと同じフォルダに置いてください。
+
+ステップ2：スプレッドシート側の「招待」
+ここが最大の落とし穴です。APIを有効にしただけでは、そのボットはあなたのシートを見れません。
+
+書き込みたい スプレッドシート をブラウザで開きます。
+
+右上の [共有] ボタンをクリックします。
+
+「ユーザーやグループを追加」 の欄に、さきほどのサービスアカウントのメールアドレス を入力します。
+
+※ credentials.json をメモ帳で開くと "client_email": "xxxx..." という行に書いてあります。
+
+権限が 「編集者」 になっていることを確認して [送信]。
+
+これで、Pythonボットが「人間と同じように」そのシートを編集できるようになりました。
+
+
