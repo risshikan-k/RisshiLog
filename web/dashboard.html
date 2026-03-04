@@ -155,7 +155,7 @@
                   ${user.status === 'in' ? '👋 退出させる' : '🚪 入室させる'}
                 </button>
                 
-                <button class="action-btn btn-copy" onclick="copyUrl('${user.idm}', this)">📋 URLをコピー</button>
+                <button class="action-btn btn-copy" onclick="copyUrl('${user.url}', this)">📋 URLをコピー</button>
                 
                 <button class="action-btn btn-copy" style="background-color:#ebf5fb; border-color:#3498db; color:#2980b9;" onclick="toggleHistory('${user.idm}')">📜 履歴を確認・編集</button>
 
@@ -239,10 +239,19 @@
       fetch(GAS_URL + "?mode=toggle_status&idm=" + idm).then(() => fetchStatus());
     }
 
-    function copyUrl(idm, btn) {
-      navigator.clipboard.writeText(`https://okamuro-d.github.io/Risshi-Log/web/index.html?id=${idm}`).then(() => {
+    //
+    function copyUrl(url, btn) {
+      if (!url) {
+        alert("URLが名簿に登録されていません。一度カードをかざして登録してください。");
+        return;
+      }
+      
+      navigator.clipboard.writeText(url).then(() => {
+        const originalText = btn.innerText;
         btn.innerText = "✅ コピー完了";
-        setTimeout(() => btn.innerText = "📋 URLをコピー", 2000);
+        setTimeout(() => btn.innerText = originalText, 2000);
+      }).catch(err => {
+        alert("コピーに失敗しました。URL: " + url);
       });
     }
 

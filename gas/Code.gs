@@ -148,8 +148,9 @@ function getAllStatus(app) {
     let idm = String(users[i][0]).trim();
     let grade = users[i][2] ? String(users[i][2]) : "";
     let yomi = users[i][3] ? String(users[i][3]) : "";
+    let url = users[i][4] ? String(users[i][4]) : "";
     
-    if (idm) statusMap[idm] = { idm: idm, name: users[i][1], grade: grade, yomi: yomi, status: 'out', time: '-' };
+    if (idm) statusMap[idm] = { idm: idm, name: users[i][1], grade: grade, yomi: yomi, url: url, status: 'out', time: '-' };
   }
 
   let logs = monthlySheet.getDataRange().getValues();
