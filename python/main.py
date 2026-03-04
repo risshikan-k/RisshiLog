@@ -284,7 +284,7 @@ def handle_tap(idm, workbook, connection):
         safe_api_call(sheet.update_cell, target_row_index, 6, duration_min)
         
         # 統計の更新
-        # update_statistics(workbook, safe_idm, user_name, duration_min, date_str)
+        update_statistics(workbook, safe_idm, user_name, duration_min, date_str)
         
         print(f"👋 【退出】 {user_name}")
         update_monitor_sheet(workbook, user_name, "退出", date_str, time_str)
