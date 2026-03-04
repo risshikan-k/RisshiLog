@@ -1,5 +1,5 @@
 # 塾の新しいスプレッドシートIDを入れる場所
-SPREADSHEET_KEY = '1N003fE2c7PXCGK5tIda5Wz0dAPnb5_Vk_lGDobN9z2s'
+SPREADSHEET_KEY = '1NOO3fE2c7PXCGK5tIda5WzOdAPnb5_Vk_lGDobN9z2s'
 
 # 塾のプロジェクトで発行したJSONファイル名
 JSON_FILE = 'python/credentials.json'
